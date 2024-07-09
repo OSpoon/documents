@@ -1,6 +1,6 @@
 title: Learning document
 description: OSpoon organizes and edits the documents
 show_downloads: false
-remote_theme: pages-themes/tactile@v0.2.0
+remote_theme: pages-themes/cayman@v0.2.0
 plugins:
 - jekyll-remote-theme
