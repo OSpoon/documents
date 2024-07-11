@@ -1,6 +1,10 @@
 # Puppeteer：从零出发，全面掌握浏览器自动化神器
 
-> 全景式详解 Puppeteer 核心概念，带你轻松入门网页抓取与自动化测试
+> 我是小鑫同学，在北京工作的一位前端开发工程师。我擅长使用 [Vue.js](https://cn.vuejs.org/)、 [Angular](https://angular.cn/)、 [Typescript](https://www.typescriptlang.org/) 和 [Node.js](https://www.nodejs.com.cn/) 构建 [Web](https://developer.mozilla.org/zh-CN/docs/Web) 应用程序和网站。同时我也是一位乐于分享的程序员，我经常利用休息时间写写技术文章、分享自己经验及学习心得。
+>
+> 近两年主要利用 [MicroApp](https://micro-zoe.github.io/micro-app/) 微前端框架维护和迭代公司的项目，保证历史的 [Angular](https://angular.cn/) 工程逐步向 [Vue.js](https://cn.vuejs.org/) 的平稳迁移。
+>
+> 座右铭: 😇 所有付出都将是沉淀，所有美好终会如期而至
 
 ## 框架介绍
 
@@ -825,3 +829,6 @@ Puppeteer 提供了设置 Cookie 的函数 `await page.setCookie({})` 和提取�
 
 Puppeteer 不提供以编程方式处理文件下载的方法，要上传文件，需要找到一个文件输入元素并调用 `ElementHandle.uploadFile('./local-file')`。
 
+## 总结
+
+综上所述，Puppeteer 作为一款功能全面的浏览器自动化工具，为网页抓取、自动化测试和浏览器操作提供了坚实基础。无论是自动填写表单、捕获性能数据，还是生成页面截图和PDF，Puppeteer 都以其丰富的API和强大的控制能力，助力开发者实现自动化需求。掌握Puppeteer，意味着解锁了网页自动化世界的无限可能，为你的开发工作带来更高效率和更多创新。希望本文能成为你驾驭Puppeteer的起点，开启自动化之旅的精彩篇章。
