@@ -497,5 +497,146 @@ import puppeteer, { Puppeteer } from "puppeteer"
 
 
 
+## 配置说明
 
+Puppeteer 支持通过配置文件和环境变量两种方式来改变默认配置项，且环境变量的优先级要高于配置文件。配置文件支持的格式如下：
 
+- .puppeteerrc.cjs
+- .puppeteerrc.js
+- .puppeteerrc (YAML、JSON)
+- .puppeteerrc.json
+- .puppeteerrc.config.js
+- .puppeteerrc.config.cjs
+
+配置文件使用示例：
+
+```JavaScript
+const { join } = require('path');
+
+/**
+ * @type {import('puppeteer').Configuration}
+ */
+module.exports = {
+  	// 修改缓存目录后需要重新安装 Puppeteer，以保证新的缓存目录中包含的运行的必要文件
+    cacheDirectory: join(__dirname, '.cache', 'puppeteer')
+}
+```
+
+配置选项及对应的环境变量：
+
+| 配置项                          | 类型                  | 环境变量                                      | 描述                                                         |
+| ------------------------------- | --------------------- | --------------------------------------------- | ------------------------------------------------------------ |
+| browserRevision                 | string                | PUPPETEER_BROWSER_REVISION                    | 指定浏览器版本号，默认值为当前 Puppeteer 内置的浏览器版本号  |
+| cacheDirectory                  | string                | PUPPETEER_CACHE_DIR                           | 指定 Puppeteer 使用的缓存目录，默认通过 path.join(os.homedir(), ‘.cache’, ‘puppeteer’) 配置路径 |
+| defaultProduct                  | chrome、firefox       | PUPPETEER_PRODUCT                             | 指定浏览器产品，默认为 chrome 浏览器                         |
+| downloadBaseUrl                 | string                | PUPPETEER_DOWNLOAD_BASE_URL                   | 指定下载浏览器的前缀地址，不同的浏览器产品对应的下载路径不同：https://storage.googleapis.com/chrome-for-testing-public or https://archive.mozilla.org/pub/firefox/nightly/latest-mozilla-central |
+| executablePath                  | string                | PUPPETEER_EXECUTABLE_PATH                     | 指定 [puppeteer.launch](https://pptr.dev/api/puppeteer.puppeteernode.launch) 启动路径，默认会自动查找安装路径 |
+| experiments                     | Record<string, never> | --                                            | 指定 Puppeteer 的实验选项                                    |
+| logLevel                        | silent、error、warn   | --                                            | 指定日志输出级别，默认为 warn 级别                           |
+| skipChromeDownload              | boolean               | PUPPETEER_SKIP_CHROME_DOWNLOAD                | 安装 Puppeteer 时跳过 Chrome 下载                            |
+| skipChromeHeadlessShellDownload | boolean               | PUPPETEER_SKIP_CHROME_HEADLESS_SHELL_DOWNLOAD | 安装 Puppeteer 时跳过 chrome-headless-shell 下载             |
+| skipDownload                    | boolean               | PUPPETEER_SKIP_DOWNLOAD                       | 安装 Puppeteer 时跳过下载                                    |
+| temporaryDirectory              | string                | PUPPETEER_TMP_DIR                             | 指定 Puppeteer 使用的临时文件目录，默认通过 os.tmpdir() 配置路径 |
+
+PS：环境变量还包含 HTTP_PROXY、HTTPS_PROXY、NO_PROXY 用于定义下载和运行浏览器的代理设置。
+
+## 调试说明
+
+由于 Puppeteer 设计浏览器的许多不同组件，因此没有统一的方式调试所有的可能得问题，Puppeteer 尽可能的提供多种调试方法来涵盖所有可能得问题。
+
+一般来说在使用 Puppeteer 的时候主要的问题来自两个来源：在 Node.js 上运行的代码（称之为服务端代码）和在浏览器端运行的代码（称之为客户端代码）。
+
+### 基础配置：
+
+因为调试往往发生在开发环境中，所以提供一个环境变量来动态启动调试的基础配置还是有很帮助的：
+
+1. 禁用无头模式：可以查看浏览器显示的内容，主观的观察内容变化；
+2. 延长执行时间：通过延长执行时间来观察正在发生的情况；
+3. 启用浏览器调试：调试时会自动启动开发者工具；
+4. 打印浏览器日志：启用后可以接管浏览器意外崩溃或无法正常启动时的日志信息。
+
+```javascript
+import puppeteer from 'puppeteer'
+
+const production = process.env.NODE_ENV === 'production';
+
+(async () => {
+    const browser = await puppeteer.launch({
+        // 开发环境中不使用无头模式
+        headless: production,
+        // 开发环境中延长执行时间
+        slowMo: production ? 0 : 250,
+        // 开发环境中打开开发者工具
+        devtools: production ? false : true,
+        // 开发环境中输出浏览器进程信息
+        dumpio: production ? false : true,
+    })
+})()
+```
+
+### 客户端代码调试：
+
+1. 捕获客户端代码中的 `console.*` 的输出：
+
+   ```javascript
+   // 监听页面的 console.* 输出 
+   page.on('console', msg => {
+       console.log('PAGE LOG: ', msg.text())
+   })
+      
+   // 模拟浏览器环境中 console.* 输出
+   await page.evaluate(() => {
+       console.log('PAGE EVAL: ', 'Hello World!')
+   })
+   ```
+
+2. 添加 `debugger;` 关键字中断代码：
+
+   ```javascript
+   // 注意启用 devtools 选项
+   await page.evaluate(() => {
+     	// 模拟客户端代码中使用 debugger; 关键字中断代码执行
+     	debugger;
+       console.log('PAGE EVAL: ', 'Hello World!')
+   })
+   ```
+
+### 服务端代码调试：
+
+在 Node.js 中使用调试器仅限于 Chrome 和 Chromium 中使用。
+
+1. 在关闭无头模式的前提下，需要在运行服务端代码的脚本中添加 `--inspect-brk` 选项，如：
+
+```shell
+npm pkg set scripts.debug="cross-env NODE_ENV=development node --inspect-brk index.mjs" // v7.24.2 +
+```
+
+1. 在 Chrome 或 Chromium 中打开 `chrome://inspect/#devices` ，在新页面中的 Remote Target 菜单下找到对应的 Target 并启动调试。
+2. 在新打开的浏览器中，按 `F8` 可以恢复测试执行；
+3. 添加的 `debugger;` 关键字也会被命中并中断程序执行；
+
+### 记录 DevTools 协议流量：
+
+以上的调试方法都不起作用时，则可能是 Puppeteer 和 DevTools 协议之间可能存在着问题，那这时候可以通过设置 DEBUG 环境变量来进一步调试：
+
+```shell
+# 基本详细日志记录
+cross-env DEBUG="puppeteer:*" node script.js
+
+# 防止截断长消息
+cross-env DEBUG="puppeteer:*" env DEBUG_MAX_STRING_LENGTH=null node script.js
+
+# 协议通信可能相当繁杂。此示例过滤掉所有网络域消息
+cross-env DEBUG="puppeteer:*" env DEBUG_COLORS=true node script.js 2>&1 | grep -v '"Network'
+
+# 过滤掉所有协议消息，但保留所有其他日志记录
+cross-env DEBUG="puppeteer:*,-puppeteer:protocol:*" node script.js
+```
+
+### 记录待处理的协议调用：
+
+如果遇到 Puppeteer 异步任务未能变为 **Fulfilled** 状态时，可以尝试使用 debugInfo 借口记录被挂起的回调，并查看导致的原因：
+
+```javascript
+console.log(browser.debugInfo.pendingProtocolErrors);
+```
