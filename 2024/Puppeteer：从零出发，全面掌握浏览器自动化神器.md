@@ -640,3 +640,188 @@ cross-env DEBUG="puppeteer:*,-puppeteer:protocol:*" node script.js
 ```javascript
 console.log(browser.debugInfo.pendingProtocolErrors);
 ```
+
+## 请求拦截
+
+调用 `await page.setRequestInterception(true)` 主动启用请求拦截，启用后每个请求都将被停止，除非主动将请求切换为继续、响应或中止状态。
+
+### 传统模式
+
+示例中访问了 taobao 主页，并启用的请求拦截，当请求 url 包含 `.png` 或 `.jpg` 后缀时，请求将被中止：
+
+```JavaScript
+import puppeteer from 'puppeteer';
+
+(async () => {
+    const browser = await puppeteer.launch({
+        headless: false
+    });
+    const page = await browser.newPage();
+    await page.setViewport({ width: 1920, height: 1080 });
+    await page.setRequestInterception(true);
+    page.on('request', request => {
+        // 判断是否已经处理过请求
+        if (request.isInterceptResolutionHandled()) return;
+        if (
+            request.url().endsWith('.png') ||
+            request.url().endsWith('.jpg')
+        )
+            request.abort(); // 拦截中止
+        else request.continue(); // 继续请求
+    });
+    await page.goto('https://taobao.com');
+    await browser.close();
+})();
+```
+
+PS：在处理拦截到的请求前要调用 `isInterceptResolutionHandled()` 或 `interceptResolutionState()` 检查请求的状态，处理过的请求被再次处理会引发`Request is already handled!` 异常。
+
+### 协作拦截模式
+
+协作拦截主要在存在多个请求拦截处理的时候通过给 `request.abort`、`request.continue` 和 `request.respond` 设置可选的 `priority` 来调控它们的处理顺序。
+
+协作拦截模式规则：
+
+1. 所有处理程序都必须提供优先级（`priority`）数值；
+2. 如果为提供优先级数值，则”传统模式“处于活动状态，而”协作拦截模式“处于非活动状态；
+3. 异步处理程序会在最终处理程序截获之前完成；
+4. 最高优先级的处理函数会被执行，但遇到优先级相同时，将按 `abort` > `respond` > `continue` 顺序执行；
+
+PS：在指定协作拦截模式时，除非要设置更高的优先级，否则请使用 0 或 `HTTPRequest.DEFAULT_INTERCEPT_RESOLUTION_PRIORITY` 。
+
+示例演示了传统模式占据最高优先级，请求会立即中止，因为在解析拦截器时只有有一个处理程序省略了 `priority`：
+
+```javascript
+page.on('request', request => {
+  if (request.isInterceptResolutionHandled()) return;
+  request.continue({}, 0);
+});
+
+page.on('request', request => {
+  if (request.isInterceptResolutionHandled()) return;
+
+  // 传统模式：立即中止
+  request.abort('failed');
+});
+```
+
+PS：此示例将在控制台收到类似 `Error: net::ERR_FAILED at https://taobao.com` 的异常信息，因为请求全部被中止掉了，更多的优先级示例见 https://pptr.dev/guides/network-interception#cooperative-request-continuation
+
+## Chrome 扩展测试：
+
+Puppeteer 可以用于测试 Chrome 扩展程序，但需要注意的是 `headless: 'shell'` 模式中不可用。
+
+首先准备一个仅包含 `service_worker` 的后台脚本，并配置好 `manifest.json` ：
+
+```json
+{
+    "name": "Hello World",
+    "version": "0.1",
+    "manifest_version": 3,
+    "background": {
+        "service_worker": "background.js"
+    }
+}
+```
+
+```javascript
+// background.js
+console.log("background.js loaded");
+```
+
+将插件放到项目目录的 `my-extension` 文件夹中，接着通过配置 `args` 选项，加载插件：
+
+```javascript
+import puppeteer from 'puppeteer'
+import path from 'path'
+import process from 'process'
+
+const extensiondir = path.join(process.cwd(), 'my-extension');
+
+(async () => {
+    const browser = await puppeteer.launch({
+        args: [
+            `--disable-extensions-except=${extensiondir}`,
+            `--load-extension=${extensiondir}`,
+        ],
+    })
+
+    await browser.close();
+})()
+```
+
+最后通过 `evaluate()` 函数在后台脚本中通过 `chrome.runtime.getManifest()` 获取插件的版本信息：
+
+```javascript
+const workerTarget = await browser.waitForTarget(
+    target => target.type() === 'service_worker' && target.url().endsWith('background.js')
+);
+const worker = await workerTarget.worker();
+const version = await worker.evaluate(() => chrome.runtime.getManifest().version);
+console.log(version);
+```
+
+PS：Puppeteer 文档显示目前尚无法测试扩展程序的内容脚本。
+
+## 更多功能
+
+### 屏幕截图：
+
+要捕获屏幕截图可以使用：
+
+```javascript
+import puppeteer from 'puppeteer'
+
+(async () => {
+    const browser = await puppeteer.launch()
+    const page = await browser.newPage()
+    await page.goto('https://developer.mozilla.org/zh-CN/', {
+      	// Waits till there are no more than 2 network connections for at least `500` ms.
+        waitUntil: 'networkidle2'
+    })
+    await page.screenshot({
+        path: 'screenshot.png',
+    });
+    await browser.close();
+})()
+```
+
+要捕获特定元素的截图可以使用：
+
+```javascript
+const element = await page.waitForSelector('div');
+await element.screenshot({
+  path: 'screenshot.png',
+});
+```
+
+默认情况下，如果元素处于 `hidden` 状态，`ElementHandle.screenshot()` 会尝试将其滚动到视图中。
+
+### PDF 生成：
+
+要打印 PDF 可以使用 `page.pdf()` 方法，默认情况下这个方法会等待字体文件的加载。
+
+```javascript
+import puppeteer from 'puppeteer'
+
+(async () => {
+    const browser = await puppeteer.launch()
+    const page = await browser.newPage()
+    await page.goto('https://developer.mozilla.org/zh-CN/', {
+        waitUntil: 'networkidle2'
+    })
+    await page.pdf({
+        path: 'mozilla.pdf',
+    });
+    await browser.close();
+})()
+```
+
+### Cookies:
+
+Puppeteer 提供了设置 Cookie 的函数 `await page.setCookie({})` 和提取页面所设置的 Cookie 的函数 `await page.cookies()`。
+
+### 文件上传：
+
+Puppeteer 不提供以编程方式处理文件下载的方法，要上传文件，需要找到一个文件输入元素并调用 `ElementHandle.uploadFile('./local-file')`。
+
