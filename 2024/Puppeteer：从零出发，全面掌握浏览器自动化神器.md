@@ -262,23 +262,240 @@ Puppeteer 推荐使用定位器 API 选择元素并与之交互，定位器 API 
 | 滚动元素     | `await page.locator('div').scroll({ scrollTop: 10, scrollLeft: 20 });` | 1 确保元素位于视口中<br />2 等待元素可见或隐藏<br />3 等待元素在两个连续的动画帧上具有稳定边界框 |
 | 等待元素可见 | `await page.locator('.loading').wait();`                     | 等待元素可见或隐藏                                           |
 
+配置自检项：
 
+```javascript
+await page.locator('button')
+  .setEnsureElementIsInTheViewport(false) // 禁用后无法保证操作前元素位于视口中
+  .setVisibility(null)                    // 设置忽略操作前检查元素可见或隐藏状态
+  .setWaitForEnabled(false)               // 禁用后无法保证操作前元素可用
+  .setWaitForStableBoundingBox(false)     // 禁用后将不等待元素在两个连续动画帧上具有稳定边界框
+  .click();
+```
 
-1. 自定义等待函数：
-2. 添加过滤器：
-3. 获取元素值：
-4. 获取 `ElementHandle`：
-5. 配置自检项：
-6. 配置超时时间：
-7. 事件监听：
+配置超时时间：
+
+```javascript
+await page.locator('button').setTimeout(5 * 1000).click();
+```
+
+PS：由于网页的响应速度存在差异，默认的超时时间不满足需要的情况下，可使用 `setTimeout()` 函数适当延长，超时时将抛出 TimeoutError 异常。
+
+获取元素值或 `ElementHandle` ：
+
+```javascript
+// 使用 map 函数将元素映射为 JavaScript 值，调用 wait() 将返回序列化的 JavaScript 值
+const enabled = await page.locator('button').map(el => !el.disabled).wait();
+
+// 调用 waitHandle() 函数返回 ElementHandle
+const buttonHandle = await page.locator('button').waitHandle();
+await buttonHandle.click();
+```
+
+添加过滤器：
+
+```javascript
+await page.locator('button')
+	.filter(el = el.innerText().includes('Click Me'))
+  .click();
+```
+
+PS：通过过滤器来匹配所有按钮元素中符合特定文本的按钮元素。
+
+添加事件监听：
+
+```javascript
+await page.locator('button')
+  .on(LocatorEvent.Action, () => {
+      console.log('clicked');
+  }).click();
+```
+
+PS：目前定位器仅支持一个单独的事件，事件会在定位器准备执行动作前触发，以此表示所有前提条件已经得到满足。
+
+自定义等待函数：
+
+```javascript
+await page.locator(() => {
+    let resolve;
+    const promise = new Promise((res) => {
+        return (resolve = res)
+    });
+    const observer = new MutationObserver((records) => {
+        for (const record of records) {
+            if (record.target instanceof HTMLCanvasElement) {
+                resolve(record.target);
+            }
+        }
+    });
+    observer.observe(document);
+    return promise;
+}).wait()
+```
+
+PS：示例中借助 **MutationObserver** 订阅 document 中出现 **HTMLCanvasElement** 元素的功能。
 
 #### 等待选择器：
 
+等待选择器（`waitForSelector`）与定位器相比是一个较低级别的 API，允许等待元素在 DOM 中可用。如果操作失败不具备重试特性，且需要手动释放生成 ElementHandle 以防止内存泄漏。
 
+```javascript
+import pprt from "puppeteer"
+
+(async () => {
+    const browser = await pprt.launch()
+    const page = await browser.newPage()
+    await page.goto("URL_ADDRESS")
+
+    // 使用 waitForSelector 查询句柄
+    const element = await page.waitForSelector("div > .class-name")
+    await element.click();
+
+    // 注意释放资源
+    await element.dispose();
+
+    await browser.close();
+})()
+```
 
 #### 立即选择器：
 
+在明确已知元素位于页面上时，可以直接使用立即选择器。
 
+| API           | 描述                                                     |
+| :------------ | -------------------------------------------------------- |
+| page.$()      | 返回与选择器匹配的单个元素                               |
+| page.$$()     | 返回与选择器匹配的多个元素                               |
+| page.$eval()  | 返回与选择器匹配的第一个元素上运行 JavaScript 函数的结果 |
+| page.$$eval() | 返回与选择器匹配的每一个元素上运行 JavaScript 函数的结果 |
 
 #### 扩展选择器：
+
+XPath 选择器（`-p-path`）：
+
+```javascript
+import pptr from 'puppeteer'
+      
+(async () => {
+    const browser = await pptr.launch({ headless: false })
+    const page = await browser.newPage()
+    await page.setViewport({ width: 1080, height: 1024 })
+    await page.goto('https://developer.mozilla.org/zh-CN/')
+      
+  	// XPath 选择器
+    const textContent = await page.locator('::-p-xpath((//*[@class="tile-container"]/div/h3/a)[1])')
+      .map(el => el.textContent)
+      .wait()
+    console.log(textContent)
+      
+    await page.screenshot({ path: 'screenshot.png' })
+    await browser.close()
+})()
+```
+
+
+
+Text 选择器（`-p-text`）：
+
+```javascript
+import pptr from 'puppeteer'
+      
+(async () => {
+    const browser = await pptr.launch({ headless: false })
+    const page = await browser.newPage()
+    await page.setViewport({ width: 1080, height: 1024 })
+    await page.goto('https://developer.mozilla.org/zh-CN/')
+      		
+  	// 文本选择器
+    const textContent = await page.locator('::-p-text(Developer essentials: JavaScript console methods)')
+    	.map(el => el.textContent)
+    	.wait()
+		console.log(textContent)
+      
+    await page.screenshot({ path: 'screenshot.png' })
+    await browser.close()
+})()
+```
+
+
+
+ARIA 选择器（`-p-aria`）：
+
+```javascript
+import pptr from 'puppeteer'
+      
+(async () => {
+    const browser = await pptr.launch({ headless: false })
+    const page = await browser.newPage()
+    await page.setViewport({ width: 1080, height: 1024 })
+    await page.goto('https://developer.mozilla.org/zh-CN/')
+      
+  	// 无障碍属性选择器
+    const innerHTML = await page.locator('::-p-aria(MDN homepage)')
+      .map(el => el.innerHTML)
+      .wait()
+    console.log(innerHTML)
+      
+    await page.screenshot({ path: 'screenshot.png' })
+    await browser.close()
+})()
+```
+
+
+
+Pierce 选择器（`pierce/`）：
+
+```javascript
+import pptr from 'puppeteer'
+      
+(async () => {
+    const browser = await pptr.launch({ headless: false })
+    const page = await browser.newPage()
+    await page.setViewport({ width: 1080, height: 1024 })
+    await page.goto('https://mdn.github.io/web-components-examples/composed-composed-path/')
+        
+  	// 穿透 shadow DOM 选择器，深度组合器，同 pierce/p
+    const textContent = await page.locator('& >>> p')
+    	.map(el => el.textContent)
+    	.wait()
+    console.log(textContent)
+      
+    await page.screenshot({ path: 'screenshot.png' })
+    await browser.close()
+})()
+```
+
+
+
+自定义选择器（如 `-p-class`）：
+
+```JavaScript
+import puppeteer, { Puppeteer } from "puppeteer"
+      
+(async () => {
+    // 注册 class 选择器 
+    Puppeteer.registerCustomQueryHandler('class', {
+        queryOne: (node, selector) => {
+            return node.querySelector(`.${selector}`)
+        },
+        queryAll: (node, selector) => {
+            return [...node.querySelectorAll(`.${selector}`)]
+        }
+    })
+      
+    const browser = await puppeteer.launch()
+    const page = await browser.newPage()
+    await page.goto("https://developer.mozilla.org/zh-CN/")
+      
+    // 使用 class 选择器
+    const innerHTML = await page.locator('::-p-class(tile-title)').map(el => el.innerText).wait()
+    console.log(innerHTML)
+      
+    await browser.close()
+})()
+```
+
+
+
+
 
