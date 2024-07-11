@@ -79,7 +79,7 @@ import puppeteer from 'puppeteer';
 })()
 ```
 
-PS：**>>>** 是 Puppeteer 提供的查询 Shadow DOM 元素的组合器。
+PS：`>>>` 是 Puppeteer 提供的查询 Shadow DOM 元素的组合器。
 
 ### 运行环境：
 
