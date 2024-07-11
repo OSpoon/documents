@@ -181,6 +181,96 @@ Puppeteer 拥有 4 个核心概念，分别是：
 
 ### JavaScript 执行：
 
+在 Puppeteer 驱动的页面上下文中执行 JavaScript 函数同样在入门示例中有过使用，但没有提到如何传递参数和其中的一个缺陷。
+
+传参：`evaluate` 第二个参数支持传递一个 **ElementHandle** 对象：
+
+```javascript
+import puppeteer from 'puppeteer';
+
+(async () => {
+    const browser = await puppeteer.launch()
+    const page = await browser.newPage()
+    await page.goto('https://caniuse.com/')
+
+    const handle = await page.locator('.news').waitHandle()
+    const textContent = await page.evaluate(el => el.textContent, handle)
+    console.log(textContent)
+
+    await browser.close()
+})()
+```
+
+缺陷：上面示例中 textContent 被成功的输出，说明 **el** 是个有效的对象，但如果直接返回 **el** 对象，你会看到不一样的结果，终端输出了 `{}` 。造成这个现象的原因是 Puppeteer 会将对象序列化导致得到了不正确的结果，为了处理返回的对象，Puppeteer 提供了通过引用返回对象的方法：
+
+```javascript
+import puppeteer from 'puppeteer';
+
+(async () => {
+    const browser = await puppeteer.launch()
+    const page = await browser.newPage()
+    await page.goto('https://caniuse.com/')
+
+    const handle = await page.locator('.news').waitHandle()
+    const element = await page.evaluateHandle(el => el, handle)
+    console.log(element instanceof ElementHandle)
+
+    await browser.close()
+})()
+```
+
+PS：在实际使用时要格外注意，多加测试。
+
 ### 网络日志：
 
+`page` 提供了一个 `on(event, handler)` 函数，允许对 Puppeteer 派发的事件进行监听。
+
+```javascript
+import puppeteer from 'puppeteer';
+
+(async () => {
+    const browser = await puppeteer.launch()
+    const page = await browser.newPage()
+    await page.goto('https://caniuse.com/')
+
+    page.on('request', request => {
+        console.log('request : ', request.url())
+    })
+
+    page.on('response', response => {
+        console.log('response : ', response.url())
+    })
+})()
+```
+
 ### 页面交互：
+
+前面的示例中或多或少都使用到了Puppeteer 提供与页面交互的 API，页面交互也是 Puppeteer 核心概念中内容最多的一块，所以放到这个小节的最后来讲。
+
+#### 定位器：
+
+Puppeteer 推荐使用定位器 API 选择元素并与之交互，定位器 API 会等待元素在 DOM 中处于可操作的正确状态。但是如果定位器 API 无法满足时仍可以使用低级别的 API，如：`page.waitForSelector()` 或 `ElementHandle`。
+
+1. 点击元素：
+2. 录入文本：
+3. 鼠标悬停：
+4. 滚动元素：
+5. 等待元素可见：
+6. 自定义等待函数：
+7. 添加过滤器：
+8. 获取元素值：
+9. 获取 `ElementHandle`：
+10. 配置自检项：
+11. 配置超时时间：
+12. 事件监听：
+
+#### 等待选择器：
+
+
+
+#### 立即选择器：
+
+
+
+#### 扩展选择器：
+
