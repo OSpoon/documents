@@ -119,9 +119,8 @@ Puppeteer 拥有 4 个核心概念，分别是：
    ```
 
    为默认浏览器上下文重写访问高德地图的定位权限：
-
-
-   ```JavaScript
+   
+   ```javascript
    import puppeteer from 'puppeteer';
    
    (async () => {
@@ -137,6 +136,8 @@ Puppeteer 拥有 4 个核心概念，分别是：
        await page.goto(url)
    })()
    ```
+
+
 
 2. 如何连接到正在运行的浏览器：
 
